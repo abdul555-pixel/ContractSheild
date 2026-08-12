@@ -21,3 +21,6 @@ node_modules/
 
 # Uploads / generated files
 backend/uploads/
+
+# Local packages/installers
+pckges/
