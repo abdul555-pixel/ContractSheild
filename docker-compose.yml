@@ -23,13 +23,6 @@ services:
     depends_on:
       - db
 
-  frontend:
-    build: ./frontend
-    container_name: contractshield-frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
 
 volumes:
   postgres_data:

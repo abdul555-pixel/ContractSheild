@@ -1,36 +1,23 @@
 # Python
-__pycache__/
-*.py[cod]
-*.pyo
-
-# Virtual environment
 venv/
-.venv/
-env/
+**/venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
 
-# Environment variables / secrets
+# Environment variables
 .env
 .env.*
 !.env.example
 
+# Node
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+
 # macOS
 .DS_Store
 
-# Node
-node_modules/
-.next/
-out/
-
-# Build files
-dist/
-build/
-
-# IDE
-.vscode/
-.idea/
-
-# Logs
-*.log
-
-# Temporary files
-*.tmp
+# Uploads / generated files
+backend/uploads/

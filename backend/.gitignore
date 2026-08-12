@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# Environment / secrets
+.env
+.env.*
+
+# Generated files
+output.json
+slither_output.json
+
+# Temporary uploads
+uploads/
+
+# Temporary test/generated data
+test_contract.json
+
+# Build/cache
+dist/
+build/
+.next/
