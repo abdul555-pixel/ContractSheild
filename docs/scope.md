@@ -1,21 +1,21 @@
-Scope
-MVP (Must Build)
+<h1>Scope</h1>
+<h3>MVP (Must Build)</h3>
 Analyze the code using Slither.
 Detect vulnerabilities such as:
-Reentrancy
+<ul>Reentrancy
 Access control flaws
 Unchecked external calls
-Send the findings to an LLM.
-The LLM explains:
+Send the findings to an LLM.</ul>
+<ul>The LLM explains:
 What the vulnerability is.
 Why it's dangerous.
 How it could be exploited.
-How to fix it.
+How to fix it.</ul>
 The user receives a clear report and suggested code changes.
 
 Instead of a developer seeing a technical message like:
 
-"Potential reentrancy in withdraw() due to external call before state update."
+<h5>"Potential reentrancy in withdraw() due to external call before state update."</h5>
 
 They would see something like:
 
@@ -25,7 +25,7 @@ Your withdraw() function sends Ether before updating the user's balance. An atta
 
 Recommended fix: Update the balance before making the external call, or use a reentrancy guard.
 
-Future Scope
+<h3>Future Scope</h3>
 
 ContractShield can evolve into a comprehensive AI-powered smart contract security platform. Future enhancements include support for multiple blockchain networks and smart contract languages, integration with GitHub and CI/CD pipelines for automated security checks, and a VS Code extension for real-time vulnerability detection during development.
 
