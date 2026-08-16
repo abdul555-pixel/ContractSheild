@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import Base, engine
 from app.models.scan import Scan
 from app.routes.audit import router as audit_router
+from app.routes.scans import router as scans_router
 
 
 load_dotenv()
@@ -45,7 +46,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
+app.include_router(scans_router)
 app.include_router(audit_router)
 
 

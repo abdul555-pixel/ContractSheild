@@ -9,7 +9,7 @@ client = OpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY"),
 )
 
-MODEL_NAME = "google/gemma-4-26b-a4b-it:free"
+MODEL_NAME = "cohere/north-mini-code:free"
 
 
 def ask_llm(prompt: str) -> str:

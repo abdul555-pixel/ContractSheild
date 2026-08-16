@@ -1,52 +1,98 @@
 from app.models.finding import Finding
 
 
-def build_audit_prompt(findings: list[Finding]) -> str:
+def build_audit_prompt(
+    finding: Finding,
+    source_code: str
+) -> str:
+
     return f"""
-You are a smart contract security auditor.
+You are an expert Solidity smart contract security auditor.
 
-Analyze the following Slither findings.
+Analyze ONE Slither finding.
 
-For EACH finding, provide exactly these fields:
+==================================================
+SLITHER FINDING
+==================================================
 
-1. title
-2. plain_explanation
-   - Explain the vulnerability in simple, developer-friendly language.
-3. impact
-   - Explain what could happen if the vulnerability is exploited.
-4. exploitability
-   - Classify as exactly one of: "High", "Medium", or "Low".
-5. exploitability_reason
-   - Explain why you gave that exploitability rating.
-6. suggested_fix
-   - Explain how the developer should fix the vulnerability.
-7. original_code
-   - Include the exact vulnerable Solidity code snippet from the provided
-     contract.
-   - Do not invent, rewrite, or modify the original code.
-8. patched_code
-   - Provide a corrected version of ONLY the vulnerable snippet.
-   - Do not rewrite the entire contract.
-   - The patch is a SUGGESTION for the developer to review.
-   - Never claim that the patch is guaranteed safe.
+Detector:
+{finding.title}
 
-When generating a patch:
+Description:
+{finding.description}
 
-- Preserve the original functionality as much as possible.
-- Follow established Solidity security patterns.
-- For reentrancy vulnerabilities, prefer the Checks-Effects-Interactions
-  pattern where appropriate.
-- Do not introduce unrelated changes.
-- If the exact vulnerable code cannot be identified from the provided
-  information, use an empty string for original_code and patched_code rather
-  than inventing code.
+Severity:
+{finding.severity}
 
-Return ONLY a valid JSON array.
+Function:
+{finding.function_name}
 
-Each array item MUST contain exactly these fields:
+Affected lines:
+{finding.line_numbers}
 
-[
-  {{
+==================================================
+SOURCE CODE
+==================================================
+
+{source_code}
+
+==================================================
+IMPORTANT ANALYSIS RULE
+==================================================
+
+You MUST analyze ONLY this Slither detector:
+
+{finding.title}
+
+Do not replace it with another vulnerability that happens
+to exist in the source code.
+
+Special rules:
+
+1. If the detector is "reentrancy-eth":
+   Analyze the reentrancy vulnerability.
+
+2. If the detector is "solc-version":
+   Analyze ONLY the Solidity compiler version.
+   Do NOT discuss reentrancy.
+   Do NOT discuss msg.sender.call.
+   Do NOT discuss balances.
+
+3. If the detector is "low-level-calls":
+   Analyze the use of the low-level call.
+   You may mention reentrancy as a related risk ONLY if
+   the Slither description supports it.
+
+==================================================
+CODE EXTRACTION RULE
+==================================================
+
+The "original_code" field MUST contain the EXACT Solidity
+source code from the supplied source code.
+
+Do NOT invent comments.
+
+Do NOT add comments such as:
+"// VULNERABILITY"
+
+Do NOT rewrite the source code.
+
+The "patched_code" field should contain only the corrected
+version of the relevant code.
+
+==================================================
+JSON RULES
+==================================================
+
+Return ONLY valid JSON.
+
+Do NOT use Markdown.
+
+Do NOT use ```json.
+
+The response MUST contain exactly these fields:
+
+{{
     "title": "...",
     "plain_explanation": "...",
     "impact": "...",
@@ -55,13 +101,33 @@ Each array item MUST contain exactly these fields:
     "suggested_fix": "...",
     "original_code": "...",
     "patched_code": "..."
-  }}
-]
+}}
 
-Do not wrap the JSON in markdown code fences.
-Do not include any additional text before or after the JSON.
+IMPORTANT:
 
-Slither findings:
+Because this is JSON, ALL newlines inside original_code
+and patched_code MUST be escaped as \\n.
 
-{findings}
+ALL double quotes inside Solidity strings MUST be escaped
+as \\\".
+
+Example:
+
+"original_code": "require(success, \\\"Transfer failed\\\");\\n"
+
+Never place a literal newline inside a JSON string.
+
+exploitability MUST be exactly:
+
+"High"
+
+"Medium"
+
+or
+
+"Low"
+
+Do not return an array.
+
+Do not include any text outside the JSON object.
 """

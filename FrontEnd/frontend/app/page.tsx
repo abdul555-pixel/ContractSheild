@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRef, useState } from "react";
 import CodeDiffViewer from "@/components/CodeDiffViewer";
+import ScanHistorySidebar from "@/components/ScanHistorySidebar";
 
 type Assessment = {
   title: string;
@@ -38,6 +39,9 @@ type AuditResponse = {
 export default function Home() {
   const [contractCode, setContractCode] = useState("");
   const [fileName, setFileName] = useState("");
+  const [activeScanId, setActiveScanId] = useState<number | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const [auditResult, setAuditResult] =
     useState<AuditResponse | null>(null);
@@ -65,7 +69,6 @@ export default function Home() {
     }
 
     setError("");
-
     setFileName(file.name);
 
     const reader = new FileReader();
@@ -73,9 +76,17 @@ export default function Home() {
     reader.onload = (e) => {
       const content = e.target?.result;
 
-      if (typeof content === "string") {
+      if (typeof content === "string" && content.trim().length > 0) {
         setContractCode(content);
+        console.log("File loaded successfully, length:", content.length);
+      } else {
+        setError("The uploaded file appears to be empty or unreadable.");
       }
+    };
+
+    reader.onerror = () => {
+      console.error("FileReader error:", reader.error);
+      setError("Failed to read the file. Please try again.");
     };
 
     reader.readAsText(file);
@@ -119,6 +130,7 @@ export default function Home() {
 
           body: JSON.stringify({
             contract: contractCode,
+            contract_name: fileName || undefined,
           }),
         }
       );
@@ -132,6 +144,8 @@ export default function Home() {
       }
 
       setAuditResult(data);
+      setActiveScanId(data.scan_id);
+      setRefreshTrigger((prev) => prev + 1);
 
     } catch (err) {
       setError(
@@ -148,364 +162,435 @@ export default function Home() {
   // NEW SCAN
   // ============================================================
 
-  const handleNewScan = () => {
+  const clearScanView = () => {
     setContractCode("");
     setFileName("");
     setAuditResult(null);
     setError("");
+    setActiveScanId(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
+  const handleNewScan = () => {
+    const name = window.prompt(
+      "Name this scan (optional):",
+      ""
+    );
+
+    clearScanView();
+    setFileName(name?.trim() || "");
+  };
+
+  // ============================================================
+  // SELECT A PAST SCAN FROM THE SIDEBAR
+  // ============================================================
+
+  const handleSelectScan = async (scanId: number) => {
+    setLoading(true);
+    setError("");
+    try {
+      const apiUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+      const res = await fetch(`${apiUrl}/scans/${scanId}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || "That scan could not be found.");
+      }
+
+      setContractCode(data.contract_code);
+      setFileName(data.contract_name || "");
+      setAuditResult({
+        risk_score: data.risk_score,
+        risk_level: data.risk_level,
+        findings: data.findings,
+      });
+      setActiveScanId(scanId);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load that scan."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-[#0A0A0A] text-white flex flex-col">
+    <div className="flex">
+      <ScanHistorySidebar
+        onSelectScan={handleSelectScan}
+        onNewScan={handleNewScan}
+        activeScanId={activeScanId}
+        onScanDeleted={clearScanView}
+        isOpen={sidebarOpen}
+        refreshTrigger={refreshTrigger}
+      />
 
-      {/* ======================================================
-          NAVBAR
-      ====================================================== */}
+      {/* Sidebar toggle — slides with the sidebar edge, always visible */}
+      <button
+        onClick={() => setSidebarOpen((prev) => !prev)}
+        className={`fixed top-1/2 -translate-y-1/2 z-30 w-6 h-12 flex items-center justify-center bg-neutral-900 border border-neutral-700 rounded-r-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-all duration-300 ease-in-out ${
+          sidebarOpen ? "left-64" : "left-0"
+        }`}
+        aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+      >
+        {sidebarOpen ? "‹" : "›"}
+      </button>
 
-      <header className="w-full border-b border-neutral-800 px-8 py-5 flex items-center justify-between">
+      <main
+        className={`flex-1 min-h-screen bg-[#0A0A0A] text-white flex flex-col transition-all duration-300 ease-in-out ${
+          sidebarOpen ? "ml-64" : "ml-0"
+        }`}
+      >
 
-        <div className="flex items-center">
+        {/* ======================================================
+            NAVBAR
+        ====================================================== */}
 
-          <div className="flex items-center justify-center">
+        <header className="w-full border-b border-neutral-800 px-8 py-5 flex items-center justify-between">
 
-            <Image
-              src="/logo.png"
-              alt="ContractShield Logo"
-              width={52}
-              height={52}
-              priority
-              className="select-none"
-            />
+          <div className="flex items-center">
 
-          </div>
+            <div className="flex items-center justify-center">
 
-          <div>
+              <Image
+                src="/logo.png"
+                alt="ContractShield Logo"
+                width={52}
+                height={52}
+                priority
+                className="select-none"
+              />
 
-            <h1 className="font-semibold text-lg">
-              ContractShield
-            </h1>
+            </div>
 
-          </div>
+            <div>
 
-        </div>
+              <h1 className="font-semibold text-lg">
+                ContractShield
+              </h1>
 
-        <button
-          onClick={handleNewScan}
-          className="px-4 py-2 rounded-xl border border-neutral-700 hover:bg-neutral-800 transition"
-        >
-          New Scan
-        </button>
-
-      </header>
-
-
-      {/* ======================================================
-          HERO
-      ====================================================== */}
-
-      <section className="flex-1 flex items-center justify-center px-6 py-12">
-
-        <div className="w-full max-w-4xl">
-
-          {/* ==================================================
-              TITLE
-          ================================================== */}
-
-          <div className="text-center mb-10">
-
-            <h1 className="text-5xl font-bold tracking-tight">
-              Analyze Smart Contracts
-            </h1>
-
-            <p className="mt-4 text-neutral-400 text-md max-w-2xl mx-auto">
-              Paste your Solidity contract below and let AI detect
-              vulnerabilities, explain risks, and recommend fixes before
-              deployment.
-            </p>
+            </div>
 
           </div>
 
+          <button
+            onClick={handleNewScan}
+            className="px-4 py-2 rounded-xl border border-neutral-700 hover:bg-neutral-800 transition"
+          >
+            New Scan
+          </button>
 
-          {/* ==================================================
-              INPUT CARD
-          ================================================== */}
-
-          <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 backdrop-blur-xl overflow-hidden shadow-2xl">
-
-            <textarea
-              value={contractCode}
-              onChange={(e) =>
-                setContractCode(e.target.value)
-              }
-              placeholder="// Paste your Solidity smart contract here..."
-              className="w-full h-[420px] bg-transparent resize-none outline-none p-8 text-neutral-200 placeholder:text-neutral-500 font-mono text-sm"
-            />
+        </header>
 
 
-            <div className="border-t border-neutral-800 px-6 py-4 flex justify-between items-center">
+        {/* ======================================================
+            HERO
+        ====================================================== */}
 
-              {/* Hidden file input */}
+        <section className="flex-1 flex items-center justify-center px-6 py-12">
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".sol"
-                onChange={handleFileUpload}
-                className="hidden"
+          <div className="w-full max-w-4xl">
+
+            {/* ==================================================
+                TITLE
+            ================================================== */}
+
+            <div className="text-center mb-10">
+
+              <h1 className="text-5xl font-bold tracking-tight">
+                Analyze Smart Contracts
+              </h1>
+
+              <p className="mt-4 text-neutral-400 text-md max-w-2xl mx-auto">
+                Paste your Solidity contract below and let AI detect
+                vulnerabilities, explain risks, and recommend fixes before
+                deployment.
+              </p>
+
+            </div>
+
+
+            {/* ==================================================
+                INPUT CARD
+            ================================================== */}
+
+            <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 backdrop-blur-xl overflow-hidden shadow-2xl">
+
+              <textarea
+                value={contractCode}
+                onChange={(e) =>
+                  setContractCode(e.target.value)
+                }
+                placeholder="// Paste your Solidity smart contract here..."
+                className="w-full h-[420px] bg-transparent resize-none outline-none p-8 text-neutral-200 placeholder:text-neutral-500 font-mono text-sm"
               />
 
 
-              {/* Upload .sol */}
+              <div className="border-t border-neutral-800 px-6 py-4 flex justify-between items-center">
 
-              <button
-                onClick={handleUploadClick}
-                className="text-sm text-neutral-400 hover:text-white transition"
-              >
-                📎 {fileName || "Upload .sol"}
-              </button>
+                {/* Hidden file input */}
 
-
-              {/* Analyze Contract */}
-
-              <button
-                onClick={handleAnalyze}
-                disabled={loading}
-                className="px-6 py-3 rounded-2xl bg-white text-black font-medium hover:scale-105 transition duration-200 disabled:opacity-50 disabled:hover:scale-100"
-              >
-                {loading
-                  ? "Analyzing..."
-                  : "Analyze Contract →"}
-              </button>
-
-            </div>
-
-          </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".sol"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
 
 
-          {/* ==================================================
-              ERROR
-          ================================================== */}
+                {/* Upload .sol */}
 
-          {error && (
-
-            <div className="mt-4 rounded-xl border border-red-900 bg-red-950/30 p-4 text-sm text-red-400">
-              {error}
-            </div>
-
-          )}
+                <button
+                  onClick={handleUploadClick}
+                  className="text-sm text-neutral-400 hover:text-white transition"
+                >
+                  📎 {fileName || "Upload .sol"}
+                </button>
 
 
-          {/* ==================================================
-              SECURITY REPORT
-          ================================================== */}
+                {/* Analyze Contract */}
 
-          {auditResult && (
-
-            <div className="mt-12">
-
-              <h2 className="text-2xl font-semibold mb-6">
-                Security Report
-              </h2>
-
-
-              {/* Risk Summary */}
-
-              <div className="grid md:grid-cols-2 gap-4 mb-10">
-
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-
-                  <p className="text-sm text-neutral-500">
-                    Risk Level
-                  </p>
-
-                  <p className="mt-2 text-2xl font-semibold">
-                    {auditResult.risk_level}
-                  </p>
-
-                </div>
-
-
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-
-                  <p className="text-sm text-neutral-500">
-                    Risk Score
-                  </p>
-
-                  <p className="mt-2 text-2xl font-semibold">
-                    {auditResult.risk_score}/10
-                  </p>
-
-                </div>
+                <button
+                  onClick={handleAnalyze}
+                  disabled={loading || !contractCode.trim()}
+                  className="px-6 py-3 rounded-2xl bg-white text-black font-medium hover:scale-105 transition duration-200 disabled:opacity-50 disabled:hover:scale-100"
+                >
+                  {loading ? "Analyzing..." : "Analyze Contract →"}
+                </button>
 
               </div>
 
-
-              {/* Findings */}
-
-              {auditResult.findings.map(
-                (item, index) => (
-
-                  <div
-                    key={index}
-                    className="mb-12"
-                  >
-
-                    {/* Finding Header */}
-
-                    <div className="mb-6">
-
-                      <h3 className="text-xl font-semibold">
-                        {item.assessment.title}
-                      </h3>
-
-                      <p className="mt-2 text-neutral-400">
-                        {item.assessment.plain_explanation}
-                      </p>
-
-                    </div>
+            </div>
 
 
-                    {/* Finding Details */}
+            {/* ==================================================
+                ERROR
+            ================================================== */}
 
-                    <div className="grid md:grid-cols-3 gap-4 mb-6">
+            {error && (
 
-                      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+              <div className="mt-4 rounded-xl border border-red-900 bg-red-950/30 p-4 text-sm text-red-400">
+                {error}
+              </div>
 
-                        <p className="text-sm text-neutral-500">
-                          Severity
-                        </p>
-
-                        <p className="mt-1 font-medium">
-                          {item.finding.severity}
-                        </p>
-
-                      </div>
+            )}
 
 
-                      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+            {/* ==================================================
+                SECURITY REPORT
+            ================================================== */}
 
-                        <p className="text-sm text-neutral-500">
-                          Exploitability
-                        </p>
+            {auditResult && (
 
-                        <p className="mt-1 font-medium">
-                          {item.assessment.exploitability}
-                        </p>
+              <div className="mt-12">
 
-                      </div>
-
-
-                      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-
-                        <p className="text-sm text-neutral-500">
-                          Risk Score
-                        </p>
-
-                        <p className="mt-1 font-medium">
-                          {item.risk_score}/10
-                        </p>
-
-                      </div>
-
-                    </div>
+                <h2 className="text-2xl font-semibold mb-6">
+                  Security Report
+                </h2>
 
 
-                    {/* Impact */}
+                {/* Risk Summary */}
 
-                    <div className="mb-6">
+                <div className="grid md:grid-cols-2 gap-4 mb-10">
 
-                      <h4 className="text-lg font-medium mb-2">
-                        Impact
-                      </h4>
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
 
-                      <p className="text-neutral-400">
-                        {item.assessment.impact}
-                      </p>
+                    <p className="text-sm text-neutral-500">
+                      Risk Level
+                    </p>
 
-                    </div>
-
-
-                    {/* Suggested Fix */}
-
-                    <div className="mb-6">
-
-                      <h4 className="text-lg font-medium mb-2">
-                        Suggested Fix
-                      </h4>
-
-                      <p className="text-neutral-400">
-                        {item.assessment.suggested_fix}
-                      </p>
-
-                    </div>
-
-
-                    {/* Code Diff */}
-
-                    {item.assessment.original_code &&
-                      item.assessment.patched_code && (
-
-                        <div>
-
-                          <h4 className="text-lg font-medium mb-4">
-                            Code Changes
-                          </h4>
-
-                          <CodeDiffViewer
-                            originalCode={
-                              item.assessment.original_code
-                            }
-                            patchedCode={
-                              item.assessment.patched_code
-                            }
-                          />
-
-                        </div>
-
-                      )}
+                    <p className="mt-2 text-2xl font-semibold">
+                      {auditResult.risk_level}
+                    </p>
 
                   </div>
 
-                )
-              )}
+
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+
+                    <p className="text-sm text-neutral-500">
+                      Risk Score
+                    </p>
+
+                    <p className="mt-2 text-2xl font-semibold">
+                      {auditResult.risk_score}/10
+                    </p>
+
+                  </div>
+
+                </div>
+
+
+                {/* Findings */}
+
+                {auditResult.findings.map(
+                  (item, index) => (
+
+                    <div
+                      key={index}
+                      className="mb-12"
+                    >
+
+                      {/* Finding Header */}
+
+                      <div className="mb-6">
+
+                        <h3 className="text-xl font-semibold">
+                          {item.assessment.title}
+                        </h3>
+
+                        <p className="mt-2 text-neutral-400">
+                          {item.assessment.plain_explanation}
+                        </p>
+
+                      </div>
+
+
+                      {/* Finding Details */}
+
+                      <div className="grid md:grid-cols-3 gap-4 mb-6">
+
+                        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+
+                          <p className="text-sm text-neutral-500">
+                            Severity
+                          </p>
+
+                          <p className="mt-1 font-medium">
+                            {item.finding.severity}
+                          </p>
+
+                        </div>
+
+
+                        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+
+                          <p className="text-sm text-neutral-500">
+                            Exploitability
+                          </p>
+
+                          <p className="mt-1 font-medium">
+                            {item.assessment.exploitability}
+                          </p>
+
+                        </div>
+
+
+                        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+
+                          <p className="text-sm text-neutral-500">
+                            Risk Score
+                          </p>
+
+                          <p className="mt-1 font-medium">
+                            {item.risk_score}/10
+                          </p>
+
+                        </div>
+
+                      </div>
+
+
+                      {/* Impact */}
+
+                      <div className="mb-6">
+
+                        <h4 className="text-lg font-medium mb-2">
+                          Impact
+                        </h4>
+
+                        <p className="text-neutral-400">
+                          {item.assessment.impact}
+                        </p>
+
+                      </div>
+
+
+                      {/* Suggested Fix */}
+
+                      <div className="mb-6">
+
+                        <h4 className="text-lg font-medium mb-2">
+                          Suggested Fix
+                        </h4>
+
+                        <p className="text-neutral-400">
+                          {item.assessment.suggested_fix}
+                        </p>
+
+                      </div>
+
+
+                      {/* Code Diff */}
+
+                      {item.assessment.original_code &&
+                        item.assessment.patched_code && (
+
+                          <div>
+
+                            <h4 className="text-lg font-medium mb-4">
+                              Code Changes
+                            </h4>
+
+                            <CodeDiffViewer
+                              originalCode={
+                                item.assessment.original_code
+                              }
+                              patchedCode={
+                                item.assessment.patched_code
+                              }
+                            />
+
+                          </div>
+
+                        )}
+
+                    </div>
+
+                  )
+                )}
+
+              </div>
+
+            )}
+
+
+            {/* ==================================================
+                BOTTOM FEATURES
+            ================================================== */}
+
+            <div className="mt-8 flex justify-center gap-8 text-sm text-neutral-500 flex-wrap">
+
+              <span>
+                🔒 Reentrancy Detection
+              </span>
+
+              <span>
+                ⚡ Gas Optimization
+              </span>
+
+              <span>
+                🧠 AI Explanations
+              </span>
+
+              <span>
+                📄 Security Report
+              </span>
 
             </div>
 
-          )}
-
-
-          {/* ==================================================
-              BOTTOM FEATURES
-          ================================================== */}
-
-          <div className="mt-8 flex justify-center gap-8 text-sm text-neutral-500 flex-wrap">
-
-            <span>
-              🔒 Reentrancy Detection
-            </span>
-
-            <span>
-              ⚡ Gas Optimization
-            </span>
-
-            <span>
-              🧠 AI Explanations
-            </span>
-
-            <span>
-              📄 Security Report
-            </span>
-
           </div>
 
-        </div>
+        </section>
 
-      </section>
-
-    </main>
+      </main>
+    </div>
   );
 }
